@@ -1,0 +1,70 @@
+\documentclass[12pt]{article}
+\usepackage{polski}
+\usepackage{ragged2e}
+\usepackage{fancyhdr}
+\usepackage{graphicx}
+\usepackage{makecell}
+\usepackage{subcaption}
+\usepackage{color}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{soul}
+\usepackage{multicol}
+\usepackage{csvsimple}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage[hidelinks]{hyperref}
+\usepackage[a4paper,tmargin=1.25in,bmargin=1.25in,lmargin=0.75in,rmargin=0.75in]{geometry}
+
+\definecolor{codebackground}{rgb}{0.85,0.85,0.85}
+
+\pagestyle{fancy}
+\lhead{VeloPath - wstępna dokumentacja}
+\chead{}
+\lfoot{\thepage}
+\cfoot{}
+\rfoot{Kacper Migdał, Marcin Adamski}
+\renewcommand{\arraystretch}{1,1}
+\renewcommand{\footrulewidth}{0.4pt}
+
+\newcommand{\codeil}[1]{\colorbox{codebackground}{\texttt{\shortstack[l]{#1}}}}
+
+\begin{document}
+
+\vspace{0.5cm}\hrule\vspace{0.1cm}\hrule\vspace{0.1cm}\hrule\vspace{0.1cm}\hrule
+
+\section*{Ważne linki}
+
+\hrule\vspace{0.1cm}\hrule\vspace{0.3cm}
+
+\subsection*{Repozytorium GitHub}
+\href{https://github.com/Marcin0001/VeloPath.git}{https://github.com/Marcin0001/VeloPath.git}
+
+\subsection*{System zarządzania zespołowego GitHub Project}
+\href{https://github.com/users/Marcin0001/projects/3/views/1}{https://github.com/users/Marcin0001/projects/3/views/1}
+
+\vspace{0.5cm}\hrule\vspace{0.1cm}\hrule\vspace{0.1cm}\hrule\vspace{0.1cm}\hrule
+
+\section*{Eksport z systemu zarządzania zespołowego - backlog (Plik .tsv został także dołączony)}
+
+\csvreader[
+  separator=tab,
+  respect all
+]{data/velopath_backlog.tsv}{}{
+  \noindent\\
+  \vspace{0.5cm}
+  \begin{tabularx}{\textwidth}{X}
+    \toprule
+    \textbf{Tytuł:} \csvcoli \\
+    \textbf{Link:} \csvcolii \\
+    \textbf{Uczestnicy:} \csvcoliii \\
+    \textbf{Status:} \csvcoliv \\
+    \textbf{Estymata:} \csvcoliv \\
+    \textbf{Spędzone godziny:} \csvcoliv \\
+    \textbf{Iteracja:} \csvcoliv \\
+    \textbf{Zamknięte:} \csvcoliv \\
+    \bottomrule
+  \end{tabularx}
+}
+
+\end{document}
