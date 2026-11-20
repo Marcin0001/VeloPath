@@ -1,5 +1,6 @@
 import math
 import osmnx as ox
+import time
 
 BIKE_CUSTOM_FILTER = (
     '["highway"~"cycleway|path|footway|residential|living_street|tertiary|secondary|unclassified|track"]'
@@ -19,10 +20,22 @@ BIKE_USEFUL_TAGS = [
     "surface"
 ]
 
-def configure_bike_tags() -> None:
-    for tag in BIKE_USEFUL_TAGS:
-        if tag not in ox.settings.useful_tags_way:
-            ox.settings.useful_tags_way.append(tag)
+class GraphLoadError(RuntimeError):
+    """Data loading or OSMnx graph building error"""
+
+def configure_bike_tags(
+        useful_tags: list[str] | None = None
+) -> list[str]:
+    tags_to_add = useful_tags if useful_tags is not None else BIKE_USEFUL_TAGS
+    current_tags = list(ox.settings.useful_tags_way)
+
+    for tag in tags_to_add:
+        if tag not in current_tags:
+            current_tags.append(tag)
+
+    ox.settings.useful_tags_way = current_tags
+
+    return current_tags
 
 def compute_bbox(lat: float, lon: float, target_distance_km: float) -> tuple[float, float, float, float]:
     if target_distance_km <= 0:
@@ -41,19 +54,80 @@ def compute_bbox(lat: float, lon: float, target_distance_km: float) -> tuple[flo
 
     return (west, south, east, north)
 
+def _is_retryable_error(exc: Exception) -> bool:
+    if isinstance(exc, (TimeoutError, ConnectionError, OSError)):
+        return True
+
+    message = str(exc).lower()
+    retry_markers = (
+        "429",
+        "502",
+        "503",
+        "504",
+        "too many requests",
+        "timed out",
+        "timeout",
+        "temporarily unavailable",
+        "overpass"
+    )
+
+    return any(marker in message for marker in retry_markers)
+
+def _fetch_graph_with_retry(
+    bbox: tuple[float, float, float, float],
+    *,
+    network_type: str,
+    custom_filter: str | None,
+    simplify: bool = True,
+    max_retries: int = 3,
+    base_delay_s: float = 1.0
+):
+    last_exc: Exception | None = None
+
+    for attempt in range(max_retries + 1):
+        try:
+            graph = ox.graph_from_bbox (
+                bbox,
+                network_type = network_type,
+                custom_filter = custom_filter,
+                simplify = simplify
+            )
+
+            if graph is None or len(graph.nodes) == 0 or len(graph.edges) == 0:
+                raise GraphLoadError("Loaded graph is empty (no nodes or edges)")
+            return graph
+        except GraphLoadError:
+            raise
+        except Exception as exc:
+            last_exc = exc
+            if not _is_retryable_error(exc) or attempt == max_retries:
+                raise GraphLoadError(
+                    f"Graph loading failed after {attempt + 1} tries: {exc}"
+                ) from exc
+            time.sleep(base_delay_s * (2 ** attempt))
+
+    raise GraphLoadError("Graph loading process failed.") from last_exc
+
 def fetch_bike_graph(
         lat: float,
         lon: float,
         target_distance_km: float,
         network_type: str = "bike",
-        custom_filter: str | None = BIKE_CUSTOM_FILTER
+        custom_filter: str | None = BIKE_CUSTOM_FILTER,
+        simplify: bool = True,
+        useful_tags: list[str] | None = None,
+        max_retries: int = 3,
+        base_delay_s: float = 1.0
     ):
-    configure_bike_tags()
+    configure_bike_tags(useful_tags)
     bbox = compute_bbox(lat, lon, target_distance_km)
+    actual_custom_filter = custom_filter if custom_filter is not None else BIKE_CUSTOM_FILTER
 
-    return ox.graph_from_bbox(
+    return _fetch_graph_with_retry(
         bbox = bbox,
         network_type = network_type,
-        custom_filter = custom_filter,
-        simplify = True
+        custom_filter = actual_custom_filter,
+        simplify = simplify,
+        max_retries = max_retries,
+        base_delay_s = base_delay_s
     )
