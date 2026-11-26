@@ -21,7 +21,7 @@ def test_compute_bbox_invalid_distance():
     with pytest.raises(ValueError):
         graph_loader.compute_bbox(30.1234, 20.5432, target_distance_km = 0.0)
 
-def test_fetch_bike_graph_calls_with_computed_bbox(monkeypatch):
+def test_fetch_bike_graph_calls_with_computed_bbox(monkeypatch: pytest.MonkeyPatch):
     lat, lon = 30.1234, 20.5432
     distance_km = 20.0
     expected_bbox = graph_loader.compute_bbox(lat, lon, distance_km)
@@ -55,7 +55,7 @@ def test_fetch_bike_graph_calls_with_computed_bbox(monkeypatch):
     assert captured["network_type"] == "bike"
     assert captured["simplify"] == True
 
-def test_fetch_bike_graph_pass_custom_filter_and_useful_tags(monkeypatch):
+def test_fetch_bike_graph_pass_custom_filter_and_useful_tags(monkeypatch: pytest.MonkeyPatch):
     captured = {}
     expected_graph = _DummyGraph(
         nodes = [1,2],
@@ -108,7 +108,7 @@ def test_fetch_bike_graph_pass_custom_filter_and_useful_tags(monkeypatch):
     for tag in graph_loader.BIKE_USEFUL_TAGS:
         assert tag in captured["useful_tags_way"]
 
-def test_fetch_graph_with_retry_errors_then_success(monkeypatch):
+def test_fetch_graph_with_retry_errors_then_success(monkeypatch: pytest.MonkeyPatch):
     attempts = {
         "count": 0
     }
@@ -155,7 +155,7 @@ def test_fetch_graph_with_retry_errors_then_success(monkeypatch):
     assert attempts["count"] == 3
     assert delays == [1.0, 2.0]
 
-def test_fetch_graph_with_retry_error_exhaust_raise(monkeypatch):
+def test_fetch_graph_with_retry_error_exhaust_raise(monkeypatch: pytest.MonkeyPatch):
     attempts = {
         "count": 0
     }
@@ -196,7 +196,7 @@ def test_fetch_graph_with_retry_error_exhaust_raise(monkeypatch):
     assert attempts["count"] == 4
     assert delays == [2.0, 4.0, 8.0]
 
-def test_fetch_graph_with_retry_error_empty_graph_with_no_retries(monkeypatch):
+def test_fetch_graph_with_retry_error_empty_graph_with_no_retries(monkeypatch: pytest.MonkeyPatch):
     attempts = {
         "count": 0
     }
@@ -240,7 +240,7 @@ def test_fetch_graph_with_retry_error_empty_graph_with_no_retries(monkeypatch):
     assert attempts["count"] == 1
     assert delays == []
 
-def test_fetch_bike_graph_graph_load_error(monkeypatch):
+def test_fetch_bike_graph_graph_load_error(monkeypatch: pytest.MonkeyPatch):
     def fake_graph_from_bbox(
             bbox,
             *,
