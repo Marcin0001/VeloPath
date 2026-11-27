@@ -1,8 +1,9 @@
 import pytest
 import osmnx as ox
 import networkx as nx
+from pathlib import Path
 
-from src import graph_loader
+from src import graph_loader, graph_part_cache
 
 class _DummyGraph:
     def __init__(self, nodes, edges):
@@ -22,6 +23,11 @@ class _DummyGraph:
     def __contains__(self, node):
         return node in self.nodes
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, _DummyGraph):
+            return NotImplemented
+        return self.nodes == other.nodes and self.edges == other.edges
+
 def test_compute_bbox_symmetry_and_order():
     lat, lon = 30.1234, 20.5432
     west, south, east, north = graph_loader.compute_bbox(lat, lon, target_distance_km = 30.0)
@@ -35,7 +41,14 @@ def test_compute_bbox_invalid_distance():
     with pytest.raises(ValueError):
         graph_loader.compute_bbox(30.1234, 20.5432, target_distance_km = 0.0)
 
-def test_fetch_bike_graph_calls_with_computed_bbox(monkeypatch: pytest.MonkeyPatch):
+def test_fetch_bike_graph_calls_with_computed_bbox(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    real_graph_part_cache = graph_part_cache.GraphPartCache
+    monkeypatch.setattr(
+        graph_loader,
+        "GraphPartCache",
+        lambda *args, **kwargs: real_graph_part_cache(cache_dir = tmp_path),
+    )
+    
     lat, lon = 30.1234, 20.5432
     distance_km = 20.0
     expected_bbox = graph_loader.compute_bbox(lat, lon, distance_km)
@@ -53,6 +66,7 @@ def test_fetch_bike_graph_calls_with_computed_bbox(monkeypatch: pytest.MonkeyPat
         simplify
     ):
         captured["bbox"] = bbox
+        captured["custom_filter"] = custom_filter
         captured["network_type"] = network_type
         captured["simplify"] = simplify
         return expected_graph
@@ -60,16 +74,24 @@ def test_fetch_bike_graph_calls_with_computed_bbox(monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr(
         graph_loader.ox,
         "graph_from_bbox", 
-        fake_graph_from_bbox)
+        fake_graph_from_bbox
+    )
 
     graph = graph_loader.fetch_bike_graph(lat, lon, distance_km, network_type = "bike")
 
-    assert graph is expected_graph
+    assert graph == expected_graph
     assert captured["bbox"] == expected_bbox
     assert captured["network_type"] == "bike"
     assert captured["simplify"] == True
 
-def test_fetch_bike_graph_pass_custom_filter_and_useful_tags(monkeypatch: pytest.MonkeyPatch):
+def test_fetch_bike_graph_pass_custom_filter_and_useful_tags(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    real_graph_part_cache = graph_part_cache.GraphPartCache
+    monkeypatch.setattr(
+        graph_loader,
+        "GraphPartCache",
+        lambda *args, **kwargs: real_graph_part_cache(cache_dir = tmp_path),
+    )
+    
     captured = {}
     expected_graph = _DummyGraph(
         nodes = [1,2],
@@ -115,7 +137,7 @@ def test_fetch_bike_graph_pass_custom_filter_and_useful_tags(monkeypatch: pytest
         network_type = "bike"
     )
 
-    assert graph is expected_graph
+    assert graph == expected_graph
     assert captured["custom_filter"] == graph_loader.BIKE_CUSTOM_FILTER
     assert captured["network_type"] == "bike"
     assert captured["simplify"] is True
