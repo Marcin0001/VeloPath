@@ -1,4 +1,5 @@
 import pytest
+import math
 
 from src import osm_tags
 
@@ -61,3 +62,108 @@ def test_compute_edge_weight_custom_multipliers() -> None:
         base_weight = 100.0,
         surface_multipliers = custom_surface_multipliers
     ) == pytest.approx(200.0)
+
+def test_city_and_mountain_bike_edge_weight_wrong_length_return_inf():
+    assert math.isinf(osm_tags.city_bike_edge_weight({"length": 0.0}))
+    assert math.isinf(osm_tags.city_bike_edge_weight({"length": -5.0}))
+    assert math.isinf(osm_tags.mountain_bike_edge_weight({"length": 0.0}))
+    assert math.isinf(osm_tags.mountain_bike_edge_weight({"length": -5.0}))
+
+def test_city_and_mountain_bike_highway_preference():
+    better_way = {
+        "length": 300.0,
+        "highway": "cycleway",
+        "surface": "asphalt"
+    }
+
+    worse_way = {
+        "length": 300.0,
+        "highway": "primary",
+        "surface": "asphalt"
+    }
+
+    assert osm_tags.city_bike_edge_weight(worse_way) > osm_tags.city_bike_edge_weight(better_way)
+    assert osm_tags.mountain_bike_edge_weight(worse_way) > osm_tags.mountain_bike_edge_weight(better_way)
+
+def test_city_and_mountain_bike_surface_preference():
+    dirt_way = {
+        "length": 300.0,
+        "highway": "cycleway",
+        "surface": "dirt"
+    }
+
+    asphalt_way = {
+        "length": 300.0,
+        "highway": "cycleway",
+        "surface": "asphalt"
+    }
+
+    assert osm_tags.city_bike_edge_weight(dirt_way) > osm_tags.city_bike_edge_weight(asphalt_way)
+    assert osm_tags.mountain_bike_edge_weight(dirt_way) < osm_tags.mountain_bike_edge_weight(asphalt_way)
+
+@pytest.mark.parametrize("grade", [-10, -0.3, 0.0])
+def test_city_and_mountain_bike_non_positive_grade_influence(grade):
+    base_way = {
+        "length": 300.0,
+        "highway": "cycleway",
+        "surface": "asphalt",
+        "grade": 0.0
+    }
+
+    non_positive_grade_way = {
+        "length": 300.0,
+        "highway": "cycleway",
+        "surface": "asphalt",
+        "grade": grade
+    }
+
+    assert osm_tags.city_bike_edge_weight(base_way) == pytest.approx(osm_tags.city_bike_edge_weight(non_positive_grade_way))
+    assert osm_tags.mountain_bike_edge_weight(base_way) == pytest.approx(osm_tags.mountain_bike_edge_weight(non_positive_grade_way))
+
+def test_city_and_mountain_bike_positive_grade_influence_and_cap():
+    flat_way = {
+        "length": 300.0,
+        "highway": "cycleway",
+        "surface": "asphalt",
+        "grade": 0.0
+    }
+
+    small_grade_way = {
+        "length": 300.0,
+        "highway": "cycleway",
+        "surface": "asphalt",
+        "grade": 0.2
+    }
+
+    extreme_grade_way = {
+        "length": 300.0,
+        "highway": "cycleway",
+        "surface": "asphalt",
+        "grade": 50.0
+    }
+
+    assert osm_tags.city_bike_edge_weight(small_grade_way) > osm_tags.city_bike_edge_weight(flat_way)
+    assert osm_tags.city_bike_edge_weight(small_grade_way) < osm_tags.city_bike_edge_weight(extreme_grade_way)
+    assert osm_tags.mountain_bike_edge_weight(small_grade_way) > osm_tags.mountain_bike_edge_weight(flat_way)
+    assert osm_tags.mountain_bike_edge_weight(small_grade_way) < osm_tags.mountain_bike_edge_weight(extreme_grade_way)
+    assert osm_tags.mountain_bike_edge_weight(small_grade_way) > osm_tags.city_bike_edge_weight(small_grade_way)
+    assert osm_tags.city_bike_edge_weight(extreme_grade_way) == pytest.approx(
+        osm_tags.city_bike_edge_weight(
+            {
+                "length": 300.0,
+                "highway": "cycleway",
+                "surface": "asphalt",
+                "grade": 1.0
+            }
+        )
+    )
+    assert osm_tags.mountain_bike_edge_weight(extreme_grade_way) == pytest.approx(
+        osm_tags.mountain_bike_edge_weight(
+            {
+                "length": 300.0,
+                "highway": "cycleway",
+                "surface": "asphalt",
+                "grade": 1.0
+            }
+        )
+    )
