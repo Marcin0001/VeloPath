@@ -1,5 +1,6 @@
 import pytest
 import osmnx as ox
+import networkx as nx
 
 from src import graph_loader
 
@@ -7,6 +8,19 @@ class _DummyGraph:
     def __init__(self, nodes, edges):
         self.nodes = nodes
         self.edges = edges
+
+    def copy(self):
+        return self
+
+    def degree(self):
+        return [(node, 2) for node in self.nodes]
+
+    def remove_nodes_from(self, nodes):
+        nodes_to_remove = set(nodes)
+        self.nodes = [node for node in self.nodes if node not in nodes_to_remove]
+
+    def __contains__(self, node):
+        return node in self.nodes
 
 def test_compute_bbox_symmetry_and_order():
     lat, lon = 30.1234, 20.5432
@@ -263,3 +277,142 @@ def test_fetch_bike_graph_graph_load_error(monkeypatch: pytest.MonkeyPatch):
             target_distance_km = 5.0,
             max_retries = 1
         )
+
+def test_clean_osm_graph_remove_isolated_and_dead_ends_and_unreachable() -> None:
+    graph = nx.MultiDiGraph()
+    graph.add_node("node0")
+    graph.add_node("node1")
+    graph.add_node("node2")
+    graph.add_node("node3")
+    graph.add_node("node4")
+    graph.add_node("node5")
+    graph.add_node("node6")
+    graph.add_node("node7")
+    graph.add_node("node8")
+    graph.add_node("node9")
+    graph.add_node("node10")
+    graph.add_edge("node1","node2")
+    graph.add_edge("node2","node3")
+    graph.add_edge("node3","node4")
+    graph.add_edge("node2","node4")
+    graph.add_edge("node2","node5")
+    graph.add_edge("node5","node6")
+    graph.add_edge("node6","node7")
+    graph.add_edge("node8","node9")
+    graph.add_edge("node9","node10")
+    graph.add_edge("node8","node10")
+
+    cleaned_graph = graph_loader.clean_osm_graph(
+        graph = graph,
+        start_node = "node1"
+    )
+
+    assert "node0" not in cleaned_graph
+    assert "node1" in cleaned_graph
+    assert "node2" in cleaned_graph
+    assert "node3" in cleaned_graph
+    assert "node4" in cleaned_graph
+    assert "node5" not in cleaned_graph
+    assert "node6" not in cleaned_graph
+    assert "node7" not in cleaned_graph
+    assert "node8" not in cleaned_graph
+    assert "node9" not in cleaned_graph
+    assert "node10" not in cleaned_graph
+
+def test_clean_osm_graph_keeps_protected_nodes() -> None:
+    graph = nx.MultiDiGraph()
+    graph.add_node("node0")
+    graph.add_node("node1")
+    graph.add_node("node2")
+    graph.add_node("node3")
+    graph.add_node("node4")
+    graph.add_node("node5")
+    graph.add_node("node6")
+    graph.add_node("node7")
+    graph.add_node("node8")
+    graph.add_node("node9")
+    graph.add_node("node10")
+    graph.add_edge("node1","node2")
+    graph.add_edge("node2","node3")
+    graph.add_edge("node3","node4")
+    graph.add_edge("node2","node4")
+    graph.add_edge("node2","node5")
+    graph.add_edge("node5","node6")
+    graph.add_edge("node6","node7")
+    graph.add_edge("node8","node9")
+    graph.add_edge("node9","node10")
+    graph.add_edge("node8","node10")
+
+    cleaned_graph = graph_loader.clean_osm_graph(
+        graph = graph,
+        protected_nodes = {"node0","node9","node6"},
+        start_node = "node1"
+    )
+
+    assert "node0" in cleaned_graph
+    assert "node1" in cleaned_graph
+    assert "node2" in cleaned_graph
+    assert "node3" in cleaned_graph
+    assert "node4" in cleaned_graph
+    assert "node5" in cleaned_graph
+    assert "node6" in cleaned_graph
+    assert "node7" not in cleaned_graph
+    assert "node8" not in cleaned_graph
+    assert "node9" in cleaned_graph
+    assert "node10" not in cleaned_graph
+
+def test_fetch_bike_graph_default_clean(monkeypatch) -> None:
+    graph = nx.MultiDiGraph()
+    graph.add_node("node1")
+    graph.add_node("node2")
+    graph.add_node("node3")
+    graph.add_node("node4")
+    graph.add_edge("node1", "node2")
+    graph.add_edge("node2", "node3")
+    graph.add_edge("node1", "node3")
+    graph.add_edge("node3", "node4")
+
+    monkeypatch.setattr(
+        graph_loader,
+        "configure_bike_tags",
+        lambda tags: []
+    )
+
+    monkeypatch.setattr(
+        graph_loader,
+        "_fetch_graph_with_retry",
+        lambda bbox, *, network_type, custom_filter, simplify, max_retries, base_delay_s: graph
+    )
+
+    result = graph_loader.fetch_bike_graph(12.34, 56.78, 10.0, start_node = "node1")
+
+    assert "node4" not in result
+    assert set(result) == {"node1","node2","node3"}
+
+def test_fetch_bike_graph_skip_clean(monkeypatch) -> None:
+    graph = nx.MultiDiGraph()
+    graph.add_node("node1")
+    graph.add_node("node2")
+    graph.add_node("node3")
+    graph.add_node("node4")
+    graph.add_edge("node1", "node2")
+    graph.add_edge("node2", "node3")
+    graph.add_edge("node1", "node3")
+    graph.add_edge("node3", "node4")
+
+    monkeypatch.setattr(
+        graph_loader,
+        "configure_bike_tags",
+        lambda tags: []
+    )
+
+    monkeypatch.setattr(
+        graph_loader,
+        "_fetch_graph_with_retry",
+        lambda bbox, *, network_type, custom_filter, simplify, max_retries, base_delay_s: graph
+    )
+
+    result = graph_loader.fetch_bike_graph(12.34, 56.78, 10.0, start_node = "node1", clean_graph = False)
+
+    assert "node4" in result
+    assert set(result) == {"node1","node2","node3","node4"}
