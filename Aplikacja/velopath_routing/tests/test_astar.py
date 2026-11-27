@@ -77,3 +77,47 @@ def test_astar_no_path_or_missing_node():
 
     with pytest.raises(astar.PathNotFoundError):
         astar.astar(graph, "A", "C")
+
+@pytest.mark.parametrize(
+    ("edge_data", "base_weight", "expected"),
+    [
+        ({"surface": " asPhaLt  "}, 100.0, 100.0),
+        ({"surface": ["  pAvEd", "^$@#&%85782"]}, 100.0, 100.0),
+        ({"surface": [" ConCRete  "]}, 100.0, 105.0),
+        ({"surface": "gravel"}, 100.0, 140.0),
+        ({"surface": "unpaved"}, 100.0, 150.0),
+        ({"surface": "dirt"}, 100.0, 160.0),
+        ({"surface": "wrong"}, 100.0, 120.0),
+        ({"surface": None}, 100.0, 110.0),
+    ]
+)
+def test_astar_single_edge_cost_osm_tags(edge_data, base_weight, expected) -> None:
+    attributes = {"length": base_weight, "surface": edge_data["surface"]}
+    assert astar._single_edge_cost(
+        attributes = attributes,
+        weight = "osm_tags"
+    ) == pytest.approx(expected)
+
+def test_min_edge_weight_multiedge_osm_tags() -> None:
+    graph = nx.MultiDiGraph()
+    graph.add_node("Node1", x = 30.0, y = 30.0)
+    graph.add_node("Node2", x = 30.001, y = 30.0)
+    graph.add_edge("Node1", "Node2", key = 0, length = 300.0, surface="dirt")
+    graph.add_edge("Node1", "Node2", key = 1, length = 300.0, surface="concrete")
+
+    assert astar._min_edge_weight(graph, "Node1", "Node2", weight = "osm_tags") == pytest.approx(315.0)
+
+def test_astar_surface_cost_preference() -> None:
+    graph = nx.MultiDiGraph()
+    graph.add_node("Node1", x = 30.0, y = 30.0)
+    graph.add_node("Node2", x = 30.001, y = 30.0)
+    graph.add_node("Node3", x = 30.001, y = 30.001)
+
+    graph.add_edge("Node1", "Node2", length = 100.0, surface = "dirt")
+    graph.add_edge("Node2", "Node3", length = 100.0, surface = "dirt")
+    graph.add_edge("Node1", "Node3", length = 300.0, surface = "concrete")
+
+    path, cost = astar.astar(graph, "Node1", "Node3", weight = "osm_tags")
+
+    assert path == ["Node1", "Node3"]
+    assert cost == pytest.approx(315.00)

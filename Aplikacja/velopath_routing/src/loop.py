@@ -52,6 +52,21 @@ def generate_loop_waypoints(
     start_x = float(start_node["x"])
     start_y = float(start_node["y"])
 
+    if (
+        start_x < -180.0
+        or start_x > 180.0
+        or start_y < -90.0
+        or start_y > 90.0
+        or not math.isfinite(start_x)
+        or not math.isfinite(start_y)
+        or math.isnan(start_x)
+        or math.isnan(start_y)
+    ):
+        raise ValueError("Start node coordinates are incorrect")
+
+    if target_distance_m <= 0:
+        raise ValueError("Target distance is incorrect")
+
     min_r_m = target_distance_m * min_ratio
     max_r_m = target_distance_m * max_ratio
     expected_part_len_m = target_distance_m / (n_waypoints + 1)
@@ -65,6 +80,18 @@ def generate_loop_waypoints(
 
         x = float(node["x"])
         y = float(node["y"])
+
+        if (
+            x < -180.0
+            or x > 180.0
+            or y < -90.0
+            or y > 90.0
+            or not math.isfinite(x)
+            or not math.isfinite(y)
+            or math.isnan(x)
+            or math.isnan(y)
+        ):
+            continue
 
         approx_dist_m = haversine_distance_m(start_y, start_x, y, x)
         if not (min_r_m <= approx_dist_m and approx_dist_m <= max_r_m):

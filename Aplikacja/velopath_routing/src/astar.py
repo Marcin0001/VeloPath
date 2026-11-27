@@ -1,6 +1,7 @@
 import heapq
 import math
 from typing import Any, Hashable
+from src.osm_tags import compute_edge_weight
 
 class PathNotFoundError(ValueError):
     """No path between given nodes"""
@@ -21,6 +22,12 @@ def _heuristic(graph: Any, u_node_id: Hashable, target_node_id: Hashable) -> flo
     target_node = graph.nodes[target_node_id]
     return haversine_distance_m(u_node["y"], u_node["x"], target_node["y"], target_node["x"])
 
+def _single_edge_cost(attributes: dict[str, Any], weight: str) -> float:
+    if weight in {"osm_tags", "surface_weight"}:
+        base_length = float(attributes.get("length", 1.0))
+        return float(compute_edge_weight(data = attributes, base_weight = base_length))
+    return float(attributes.get(weight, 1.0))
+
 def _min_edge_weight(graph: Any, u_node_id: Hashable, v_node_id: Hashable, weight: str = "length") -> float | None:
     edge_data = graph.get_edge_data(u_node_id, v_node_id)
     if edge_data is None:
@@ -31,11 +38,11 @@ def _min_edge_weight(graph: Any, u_node_id: Hashable, v_node_id: Hashable, weigh
     first_val = next(iter(edge_data.values()))
     if isinstance(first_val, dict):
         weights = [
-            float(attributes.get(weight, 1.0)) for attributes in edge_data.values()
+            _single_edge_cost(attributes = attributes, weight = weight) for attributes in edge_data.values()
         ]
     else:
         weights = [
-            float(edge_data.get(weight, 1.0))
+            _single_edge_cost(attributes = edge_data, weight = weight)
         ]
 
     return min(weights) if weights else None

@@ -156,3 +156,102 @@ def test_penalty_choose_path_without_repeats(monkeypatch: pytest.MonkeyPatch) ->
     )
 
     assert waypoints[0] == "node2"
+
+@pytest.mark.parametrize("wrong_x, wrong_y", [
+    (float("nan"), 0.0),
+    (0.0, float("nan")),
+    (float("inf"), 0.0),
+    (0.0, float("inf")),
+    (float("-inf"), 0.0),
+    (0.0, float("-inf")),
+    (300.0, 0.0),
+    (-300.0, 0.0),
+    (0.0, 300.0),
+    (0.0, -300.0),
+    (-300.0, -300.0),
+    (300.0, 300.0),
+    (-300.0, 300.0),
+    (300.0, -300.0),
+    (180.0001, 0.0),
+    (180.0001, 90.0001),
+    (180.0001, -90.0001),
+    (-180.0001, 0.0),
+    (-180.0001, 90.0001),
+    (-180.0001, -90.0001),
+])
+def test_generate_loop_waypoints_with_out_of_range_start_and_candidate_coordinates(monkeypatch: pytest.MonkeyPatch, wrong_x: float, wrong_y: float) -> None:
+    nodes =  {
+        "node1": {"x": wrong_x, "y": wrong_y},
+        "node2": {"x": 0, "y": 0}
+    }
+    
+    graph = FakeGraph(
+        nodes = nodes,
+        edges = {}
+    )
+
+    monkeypatch.setattr(
+        loop,
+        "haversine_distance_m",
+        lambda y1, x1, y2, x2: 300.0
+    )
+
+    monkeypatch.setattr(
+        loop,
+        "astar",
+        lambda graph, source_node_id, target_node_id, weight = "length": ([source_node_id, target_node_id], 300.0)
+    )
+
+    with pytest.raises(ValueError):
+        loop.generate_loop_waypoints(
+            graph = graph,
+            start_node_id = "node1",
+            target_distance_m = 1200.0,
+            n_waypoints = 1,
+            max_nodes_per_sector = 1
+        )
+
+    with pytest.raises(loop.LoopNotFoundError):
+        loop.generate_loop_waypoints(
+            graph = graph,
+            start_node_id = "node2",
+            target_distance_m = 1200.0,
+            n_waypoints = 1,
+            max_nodes_per_sector = 1
+        )
+
+def test_generate_loop_waypoints_with_extreme_coordinates(monkeypatch: pytest.MonkeyPatch) -> None:
+    nodes = {
+        "node1": {"x": 179.9999, "y": 89.9999},
+        "node2": {"x": -179.9999, "y": 89.9999},
+        "node3": {"x": -179.9999, "y": -89.9999},
+        "node4": {"x": 179.9999, "y": -89.9999},
+        "node5": {"x": 179.9999, "y": 89.9999}
+    }
+
+    graph = FakeGraph(
+        nodes = nodes,
+        edges = {}
+    )
+
+    monkeypatch.setattr(
+        loop,
+        "haversine_distance_m",
+        lambda y1, x1, y2, x2: 300.0
+    )
+
+    monkeypatch.setattr(
+        loop,
+        "astar",
+        lambda graph, source_node_id, target_node_id, weight = "length": ([source_node_id, target_node_id], 300.0)
+    )
+
+    waypoints = loop.generate_loop_waypoints(
+        graph = graph,
+        start_node_id = "node1",
+        target_distance_m = 1200.0,
+        n_waypoints = 3,
+        max_nodes_per_sector = 2
+    )
+
+    assert len(waypoints) == 3
