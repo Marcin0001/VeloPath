@@ -4,6 +4,8 @@ import time
 from typing import Hashable
 import networkx as nx
 
+from src.graph_part_cache import GraphPartCache
+
 BIKE_CUSTOM_FILTER = (
     '["highway"~"cycleway|path|footway|residential|living_street|tertiary|secondary|unclassified|track"]'
     '["bicycle"!~"no"]'
@@ -169,13 +171,25 @@ def fetch_bike_graph(
     bbox = compute_bbox(lat, lon, target_distance_km)
     actual_custom_filter = custom_filter if custom_filter is not None else BIKE_CUSTOM_FILTER
 
-    graph = _fetch_graph_with_retry(
-        bbox = bbox,
-        network_type = network_type,
-        custom_filter = actual_custom_filter,
-        simplify = simplify,
-        max_retries = max_retries,
-        base_delay_s = base_delay_s
+    query_params = {
+        "bbox": bbox,
+        "network_type": network_type,
+        "custom_filter": actual_custom_filter,
+        "simplify": simplify,
+    }
+
+    cache = GraphPartCache()
+
+    graph = cache.get_or_fetch(
+        query_params = query_params,
+        fetcher = lambda: _fetch_graph_with_retry(
+            bbox = bbox,
+            network_type = network_type,
+            custom_filter = actual_custom_filter,
+            simplify = simplify,
+            max_retries = max_retries,
+            base_delay_s = base_delay_s
+        )
     )
 
     if clean_graph:
